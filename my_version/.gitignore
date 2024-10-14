@@ -1,0 +1,42 @@
+---
+
+### Complete `.gitignore`
+
+```gitignore
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv/
+.VENV/
+
+# Byte-compiled files
+*.swp
+*.swo
+
+# IDE specific
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Python environments
+Pipfile
+Pipfile.lock
+*.env
+*.virtualenv
+
+# Miscellaneous
+*.bak
+*.tmp
