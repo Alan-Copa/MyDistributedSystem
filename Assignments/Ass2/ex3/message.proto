@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+message ChatMessage {
+  int64 sender = 1;
+  int64 recipient = 2;
+  string msg = 3;
+}
+
+message Handshake {
+  int64 id = 1;
+  bool error = 2;
+}
