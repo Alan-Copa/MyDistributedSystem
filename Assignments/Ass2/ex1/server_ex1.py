@@ -19,33 +19,57 @@ def update_n_connected_clients(update):
 def handle_client(conn, addr):
     print(f"Client {addr} connected.")
     update_n_connected_clients(1)
-    
+
     # Add client to the clients dictionary
     with clients_lock:
         clients[addr] = conn
 
-    with conn:
-        # Check shutdown_event before handling client messages
-        while not shutdown_event.is_set():
-            try:
-                data = conn.recv(1024).decode().strip()
-                if not data:
-                    continue
-                if data.lower() == "end":
-                    print(f"Client {addr} sent 'end' - closing connection.")
-                    conn.send("Goodbye!\n".encode())
-                    break
-                print(f"Client {addr}: {data}")
-                conn.send(f"{data}\n".encode())
-            except OSError:
-                break # Gracefully handle the client disconnection if connection is closed
+    try:
+        with conn:
+            while not shutdown_event.is_set():
+                try:
+                    data = conn.recv(1024).decode().strip()
 
-    # Remove client from the clients dictionary and close connection
-    with clients_lock:
-        if addr in clients:
-            del clients[addr]
-    update_n_connected_clients(-1)
-    conn.close()
+                    if not data:
+                        # Check if the connection is still alive
+                        if is_connection_alive(conn):
+                            continue  # Connection is alive, continue the loop
+                        else:
+                            print(f"Client {addr} connection lost.")
+                            break
+
+                    if data.lower() == "end":
+                        print(f"Client {addr} sent 'end' - closing connection.")
+                        conn.send("Goodbye!\n".encode())
+                        break
+
+                    print(f"Client {addr}: {data}")
+                    conn.send(f"{data}\n".encode())
+                
+                except (ConnectionResetError, BrokenPipeError, KeyboardInterrupt):
+                    print(f"Client {addr} abruptly disconnected.")
+                    break  # Gracefully handle the client disconnection if connection is closed
+
+    except OSError:
+        pass
+
+    finally:
+        # Remove client from the clients dictionary and close connection
+        with clients_lock:
+            if addr in clients:
+                del clients[addr]
+        update_n_connected_clients(-1)
+        print(f"Connection with client {addr} closed.")
+        conn.close()
+
+# Function to check if the connection is alive by sending a small probe
+def is_connection_alive(conn):
+    try:
+        # Use 'peek' to check if the connection is alive without consuming the data
+        data = conn.recv(1024, socket.MSG_PEEK)
+        return bool(data)  # If there's data, the connection is alive
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        return False  # Connection is lost
 
 # Function to handle server operator commands
 def server_operator():
