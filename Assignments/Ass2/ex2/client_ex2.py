@@ -10,7 +10,6 @@ def init_client():
 
         # Receive the server ID when connecting
         server_id_message = client_socket.recv(1024).decode().strip()
-        print(server_id_message)
 
         # Extract the server and client ID from the message
         server_id = int(server_id_message.split("My ID ")[1].split(",")[0].strip())
@@ -29,13 +28,13 @@ def init_client():
 
             # Create a new ChatMessage object
             chat_message = message_pb2.ChatMessage()
-            chat_message.sender = int(client_id)  # Use the client ID received from the server
-            chat_message.recipient = server_id  # Set the recipient to the server ID received
+            chat_message.from_ = int(client_id)  # Use the client ID received from the server
+            chat_message.to = server_id  # Set the recipient to the server ID received
             chat_message.msg = message
 
             # Serialize the message and send it to the server
             serialized_message = chat_message.SerializeToString()
-            client_socket.send(serialized_message)
+            client_socket.sendall(serialized_message)
             
             data = client_socket.recv(1024)
             if data:

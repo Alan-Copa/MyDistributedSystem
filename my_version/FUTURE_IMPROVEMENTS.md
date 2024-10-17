@@ -6,6 +6,9 @@
 - Disconnect client
     - the client has to try to send a message in order to be notified of the disconnection
 
+- Cntrl C on client:
+    server doesnt realize client is disconnected
+
 
 
 ## 1. Implement Logging

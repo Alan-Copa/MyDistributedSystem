@@ -10,17 +10,6 @@ def init_client():
             print("Connected to the server. Type your messages. Type 'end' to close the connection.")
             
             while True:
-                # Non-blocking attempt to receive data from the server
-                try:
-                    data = client_socket.recv(1024).decode()
-                    if data:
-                        print(f"Server: {data}")
-                    if "Goodbye" in data or "disconnected" in data.lower():
-                        print("Server has closed the connection.")
-                        break
-
-                except BlockingIOError:
-                    pass  # No data received, continue to take input
 
                 message = input("You: ")
 
@@ -29,7 +18,7 @@ def init_client():
                     continue
 
                 try:
-                    client_socket.send(message.encode())
+                    client_socket.sendall(message.encode())
                 except ConnectionResetError:
                     print("Server has closed the connection unexpectedly.")
                     break
@@ -37,6 +26,14 @@ def init_client():
                 # end command to terminate the connection
                 if message.lower() == 'end':
                     print("Closing client connection.") 
+                    break
+
+                # Receive the server's response and close the connection if the server has closed it
+                data = client_socket.recv(1024).decode()
+                if data:
+                    print(f"Server: {data}")
+                if "Goodbye" in data or "disconnected" in data.lower():
+                    print("Server has closed the connection.")
                     break
 
     except ConnectionRefusedError:

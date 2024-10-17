@@ -1,5 +1,5 @@
 import socket
-import message_pb2  # Import the generated protobuf class
+import message_pb2
 
 def init_client():
     host = '127.0.0.1'
@@ -28,21 +28,25 @@ def init_client():
                 print("Empty messages are not allowed. Please enter a valid message.\n")
                 continue
 
-            # Create a new ChatMessage object
             chat_message = message_pb2.ChatMessage()
-            chat_message.sender = client_id  # Use the client ID received from the handshake
+            chat_message.from_ = client_id  # Use the client ID received from the handshake
             # chat_message.recipient = server_id  # Set the recipient to the server ID received earlier
             chat_message.msg = message
 
             # Serialize the message and send it to the server
             serialized_message = chat_message.SerializeToString()
-            client_socket.send(serialized_message)
+            client_socket.sendall(serialized_message)
             
             data = client_socket.recv(1024)
             if data:
                 # Deserialize the protobuf message
                 received_message = message_pb2.ChatMessage()
                 received_message.ParseFromString(data)
+
+                if received_message.msg == "Server is shutting down. Goodbye!":
+                    print("The server has shut down. Disconnecting client.")
+                    break  # Break the loop and close the client connection
+                
                 print(f"Server echoed: {received_message.msg}")
 
             # end command to terminate the connection

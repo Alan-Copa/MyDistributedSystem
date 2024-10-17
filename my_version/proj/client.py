@@ -17,7 +17,7 @@ def init_client():
 
             try:
                 # Send message to the server
-                client_socket.send(message.encode())
+                client_socket.sendall(message.encode())
             except BrokenPipeError:
                 print("Server has closed the connection. You have been disconnected.")
                 break  # Exit the loop if the connection is closed

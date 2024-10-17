@@ -1,25 +1,22 @@
 import socket
 import threading
-import message_pb2  # Import the generated protobuf class
-import uuid
+import message_pb2 # Import the generated protobuf class
 
-server_id = 5657  # Assign a unique ID for the server
-clients = {}  # Dictionary to store client connections
-clients_lock = threading.Lock()  # Lock to protect the clients dictionary
-shutdown_event = threading.Event()  # Event to signal server shutdown
+server_id = 5657 # Assign a unique ID for the server
+clients = {} # Dictionary to store client connections
+clients_lock = threading.Lock() # Lock to protect the clients dictionary
 
 # Function for each thread to handle the client connection
 def handle_client(conn, addr, client_id):
     print(f"Client {addr} connected.")
-    
     # Send the server ID and client ID to the client upon connection
     conn.send(f"Server: My ID {server_id}, Your ID: {client_id}\n".encode())
 
     with clients_lock:
-        clients[client_id] = {'conn': conn, 'addr': addr}  # Store the client details
+        clients[client_id] = {'conn': conn, 'addr': addr} # Store the client details
 
     with conn:
-        while not shutdown_event.is_set():  # Check shutdown_event before handling client messages  
+        while True:
             try:
                 data = conn.recv(1024)
                 if not data:
@@ -33,33 +30,33 @@ def handle_client(conn, addr, client_id):
                     break
 
                 # Log and send an echoed message back
-                print(f"Client {chat_message.sender} to {chat_message.recipient}: {chat_message.msg}")
+                print(f"Client {chat_message.from_} to {chat_message.to}: {chat_message.msg}")
                 
                 # Prepare a response message from the server
                 response_message = message_pb2.ChatMessage()
-                response_message.sender = server_id  # Server's ID
-                response_message.recipient = chat_message.sender  # Reply to the original sender
+                response_message.from_ = server_id
+                response_message.to = chat_message.from_ # Reply to the original sender
                 response_message.msg = f"Server echoed: {chat_message.msg}"
 
                 # Serialize the response and send it back to the client
                 conn.send(response_message.SerializeToString())
             except OSError:
-                break   # Gracefully handle the client disconnection if connection is closed
+                break
     
     # Remove client from the clients dictionary and close connection
     with clients_lock:
         if client_id in clients:
             del clients[client_id]
-    conn.close()  # Ensure connection is closed
+    conn.close() # Ensure connection is closed
     print(f"Connection with client {client_id} closed.")
 
-
-client_id_counter = 1  # Initialize a global counter to assign IDs
+# Clientd IDs generator
+client_id_counter = 1
 def generate_client_id():
     global client_id_counter
     client_id = client_id_counter
-    client_id_counter += 1  # Increment the counter for the next client
-    return client_id  # Return the new client ID as an integer
+    client_id_counter += 1
+    return client_id
 
 def main():
     server_name = "CopaServer"
@@ -67,27 +64,23 @@ def main():
 
     print(f"{server_name} (ID: {server_id}) started on port {port}\n")
 
-    # Create a socket and bind it to the port
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Set the SO_REUSEADDR option to avoid the "address already in use" error
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("0.0.0.0", port))
-        s.listen()  # Listen for incoming connections
+        s.listen()
         print("Waiting for clients...\n")
 
-        while not shutdown_event.is_set():  # Check shutdown_event before accepting new connections
+        while True:
             try:
                 conn, addr = s.accept()
                 with clients_lock:
-                    if shutdown_event.is_set():
-                        conn.close()
-                        break
-                    client_id = generate_client_id()  # Generate a unique ID for the client
+                    client_id = generate_client_id()
                     client_thread = threading.Thread(target=handle_client, args=(conn, addr, client_id))
                     client_thread.start()
             except socket.timeout:
-                continue  # Timeout hit, check shutdown_event again
+                continue
             except socket.error:
-                break  # If shutdown, stop accepting new clients
+                break
 
     print(f"Server {server_name} has shut down.")
 
