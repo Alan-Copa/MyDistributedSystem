@@ -30,7 +30,6 @@ def init_client():
 
             chat_message = message_pb2.ChatMessage()
             chat_message.from_ = client_id  # Use the client ID received from the handshake
-            # chat_message.recipient = server_id  # Set the recipient to the server ID received earlier
             chat_message.msg = message
 
             # Serialize the message and send it to the server
@@ -42,10 +41,6 @@ def init_client():
                 # Deserialize the protobuf message
                 received_message = message_pb2.ChatMessage()
                 received_message.ParseFromString(data)
-
-                if received_message.msg == "Server is shutting down. Goodbye!":
-                    print("The server has shut down. Disconnecting client.")
-                    break  # Break the loop and close the client connection
                 
                 print(f"Server echoed: {received_message.msg}")
 

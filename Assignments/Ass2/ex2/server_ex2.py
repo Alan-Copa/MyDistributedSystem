@@ -1,6 +1,6 @@
 import socket
 import threading
-import message_pb2 # Import the generated protobuf class
+import message_pb2
 
 server_id = 5657 # Assign a unique ID for the server
 clients = {} # Dictionary to store client connections

@@ -2,18 +2,17 @@ import socket
 import threading
 import message_pb2
 
-server_id = 5657  # Assign a unique ID for the server
-clients = {}  # Dictionary to store client connections
-clients_lock = threading.Lock()  # Lock to protect the clients dictionary
-client_id_counter = 1  # Initialize a global counter to assign integer IDs
-shutdown_event = threading.Event()  # Event to signal server shutdown
+server_id = 5657 # Assign a unique ID for the server
+clients = {} # Dictionary to store client connections
+clients_lock = threading.Lock() # Lock to protect the clients dictionary
+client_id_counter = 1 # Initialize a global counter to assign integer IDs
 
 # Function to generate a simple integer client ID
 def generate_client_id():
     global client_id_counter
     client_id = client_id_counter
-    client_id_counter += 1  # Increment the counter for the next client
-    return client_id  # Return the new client ID as an integer
+    client_id_counter += 1
+    return client_id
 
 # Function to safely update and access the number of connected clients
 def get_num_connected_clients():
@@ -30,7 +29,7 @@ def handle_client(conn, addr, client_id):
         handshake_message.id = client_id
         handshake_message.error = False
 
-        conn.send(handshake_message.SerializeToString())  # Send the handshake message in protobuf format
+        conn.send(handshake_message.SerializeToString()) # Send the handshake message in protobuf format
 
     except Exception as e:
         # If an error occurs, send an error handshake message and close the connection
@@ -43,11 +42,11 @@ def handle_client(conn, addr, client_id):
         return
 
     with clients_lock:
-        clients[client_id] = {'conn': conn, 'addr': addr}  # Store the client details
+        clients[client_id] = {'conn': conn, 'addr': addr}
 
     try:
         with conn:
-            while not shutdown_event.is_set():
+            while True:
                 try:
                     # Check if the client has sent data
                     data = conn.recv(1024)
@@ -55,7 +54,7 @@ def handle_client(conn, addr, client_id):
                     if not data:
                         # If no data is received, assume the connection is lost
                         if is_connection_alive(conn):
-                            continue  # Connection is alive, continue the loop
+                            continue # Connection is alive, continue the loop
                         else:
                             print(f"Client {client_id} connection lost.")
                             break
@@ -69,7 +68,7 @@ def handle_client(conn, addr, client_id):
                         break
 
                     print(f"Client {chat_message.from_} to {chat_message.to}: {chat_message.msg}")
-                    conn.send(data)  # Echo message back to the client
+                    conn.send(data) # Echo message back to the client
 
                 except (ConnectionResetError, BrokenPipeError, KeyboardInterrupt):
                     # Handle abrupt disconnections (e.g., Ctrl+C on the client side)
@@ -90,40 +89,19 @@ def handle_client(conn, addr, client_id):
 # Function to check if the connection is alive by sending a small probe
 def is_connection_alive(conn):
     try:
-        # Use 'peek' to check if the connection is alive without consuming the data
+        # check if the connection is alive 
         data = conn.recv(1024, socket.MSG_PEEK)
-        return bool(data)  # If there's data, the connection is alive
+        return bool(data) # If there's data, the connection is alive
     except (ConnectionResetError, BrokenPipeError, OSError):
-        return False  # Connection is lost
+        return False
 
 # Function to handle server operator commands
 def server_operator():
-    while not shutdown_event.is_set():
+    while True:
         command = input("Operator: ").strip().lower()
         if command == "num users":
             num_users = get_num_connected_clients()
             print(f"Number of connected clients: {num_users}")
-        elif command == "exit":
-            print("Shutting down the server...")
-            shutdown_event.set()  # Trigger the shutdown event to stop the server
-            break
-
-# Graceful shutdown to handle client disconnection
-def graceful_shutdown():
-    print("Disconnecting all clients...")
-    with clients_lock:
-        for client_id, client_info in list(clients.items()):
-            conn = client_info['conn']
-            # Create a protobuf message for shutdown
-            shutdown_message = message_pb2.ChatMessage()
-            shutdown_message.from_ = server_id
-            shutdown_message.to = client_id
-            shutdown_message.msg = "Server is shutting down. Goodbye!"
-
-            conn.send(shutdown_message.SerializeToString())
-            conn.close()
-            print(f"Disconnected client {client_id}.")
-    print("All clients have been disconnected.")
 
 def main():
     server_name = "CopaServer"
@@ -142,20 +120,16 @@ def main():
         s.listen()
         print("Waiting for clients...\n")
 
-        while not shutdown_event.is_set():  # Check shutdown_event before accepting new connections
+        while True:
             try:
                 conn, addr = s.accept()
                 with clients_lock:
-                    if shutdown_event.is_set():
-                        conn.close()
-                        break
                     client_id = generate_client_id()
                     client_thread = threading.Thread(target=handle_client, args=(conn, addr, client_id))
                     client_thread.start()
             except socket.error:
-                break  # If shutdown, stop accepting new clients
+                break
 
-    graceful_shutdown()  # Disconnect clients and clean up
     print(f"Server {server_name} has shut down.")
 
 if __name__ == "__main__":

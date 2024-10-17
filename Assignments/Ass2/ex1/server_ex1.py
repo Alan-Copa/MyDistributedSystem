@@ -4,10 +4,6 @@ import threading
 # Global variable to keep track of the number of connected clients
 n_connected_clients = 0
 n_connected_clients_lock = threading.Lock() # Lock for thread safety
-shutdown_event = threading.Event() # Event to signal server shutdown
-client_threads = [] # List to store all active client threads
-clients = {} # Dictionary to store client connections
-clients_lock = threading.Lock() # Lock to protect the clients dictionary
 
 # Function to safely update the number of connected clients
 def update_n_connected_clients(update):
@@ -20,20 +16,16 @@ def handle_client(conn, addr):
     print(f"Client {addr} connected.")
     update_n_connected_clients(1)
 
-    # Add client to the clients dictionary
-    with clients_lock:
-        clients[addr] = conn
-
     try:
         with conn:
-            while not shutdown_event.is_set():
+            while True:
                 try:
                     data = conn.recv(1024).decode().strip()
 
                     if not data:
                         # Check if the connection is still alive
                         if is_connection_alive(conn):
-                            continue  # Connection is alive, continue the loop
+                            continue # Connection is alive, continue the loop
                         else:
                             print(f"Client {addr} connection lost.")
                             break
@@ -48,16 +40,12 @@ def handle_client(conn, addr):
                 
                 except (ConnectionResetError, BrokenPipeError, KeyboardInterrupt):
                     print(f"Client {addr} abruptly disconnected.")
-                    break  # Gracefully handle the client disconnection if connection is closed
+                    break  
 
     except OSError:
         pass
 
     finally:
-        # Remove client from the clients dictionary and close connection
-        with clients_lock:
-            if addr in clients:
-                del clients[addr]
         update_n_connected_clients(-1)
         print(f"Connection with client {addr} closed.")
         conn.close()
@@ -67,38 +55,19 @@ def is_connection_alive(conn):
     try:
         # Use 'peek' to check if the connection is alive without consuming the data
         data = conn.recv(1024, socket.MSG_PEEK)
-        return bool(data)  # If there's data, the connection is alive
+        return bool(data) # If there's data, the connection is alive
     except (ConnectionResetError, BrokenPipeError, OSError):
-        return False  # Connection is lost
+        return False # Connection is lost
 
 # Function to handle server operator commands
 def server_operator():
     print("Server operator started. Type 'num users' to see the number of connected clients.")
-    while not shutdown_event.is_set():
-        print("Operator: ", end='', flush=True) # Ensures "Operator:" is displayed
+    while True:
+        print("Operator: ", end='', flush=True)
         command = input().strip().lower()
         if command == "num users":
             with n_connected_clients_lock:
                 print(f"Number of connected clients: {n_connected_clients}")
-        elif command == "exit":
-            print("Shutting down the server...")
-            graceful_shutdown() # Call the graceful shutdown function
-            shutdown_event.set() # Trigger the shutdown event to stop the server
-            break
-
-# Graceful shutdown to inform all clients and close connections
-def graceful_shutdown():
-    print("Disconnecting all clients...")
-    with clients_lock:
-        for addr, conn in list(clients.items()):
-            try:
-                conn.sendall("Server is shutting down. Goodbye!\n".encode())
-            except:
-                pass
-            conn.close()
-            print(f"Disconnected client {addr}.")
-        clients.clear() # Clear the clients dictionary
-    print("All clients disconnected.")
 
 def main():
     server_name = "CopaServer"
@@ -112,25 +81,20 @@ def main():
 
     # Create a socket and bind it to the port
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Avoid "address already in use" error
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)# Avoid "address already in use" error
         s.bind(("0.0.0.0", port))
         s.listen()
         s.settimeout(1.0) # Set a timeout for accepting new connections
 
-        while not shutdown_event.is_set(): # Check shutdown_event before accepting new connections
+        while True:
             try:
                 conn, addr = s.accept()
                 client_thread = threading.Thread(target=handle_client, args=(conn, addr))
                 client_thread.start()
-                client_threads.append(client_thread) # Track client threads
             except socket.timeout:
-                continue # Timeout hit, check shutdown_event again
+                continue
             except socket.error:
                 break # If shutdown, stop accepting new clients
-
-    # Wait for all client threads to finish
-    for t in client_threads:
-        t.join() # Ensure all clients are disconnected before shutting down
 
     print(f"Server {server_name} has shut down.")
 
