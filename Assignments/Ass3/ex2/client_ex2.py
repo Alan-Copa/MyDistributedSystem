@@ -2,34 +2,85 @@ import socket
 import threading
 from template_pb2 import Message, FastHandshake
 
-def receive_messages(client_socket):
-    buffer = b""
+def split_buffer_to_messages(buffer):
+    messages = []
+    index = 0
+
+    while index < len(buffer):
+        # Look for the start of a new message, assuming it starts with '\x08'
+        if buffer[index] == 0x08:
+            # If we are not at the start of the buffer, consider everything before as a message
+            if index > 0:
+                messages.append(current_message)
+            
+            # Start a new message
+            current_message = bytearray()
+        
+        # Add the current byte to the current message
+        current_message.append(buffer[index])
+        
+        # Move to the next byte
+        index += 1
+    
+    # Append the last collected message
+    if current_message:
+        messages.append(current_message)
+    
+    return messages
+
+
+def send_message(conn, m):
+    serialized = m.SerializeToString()
+    conn.sendall(len(serialized).to_bytes(4, byteorder="big"))
+    conn.sendall(serialized)
+
+
+def receive_message(conn, m):
+    msg = m()
+    size = int.from_bytes(conn.recv(4), byteorder="big")
+    data = conn.recv(size)
+    msg.ParseFromString(data)
+    return msg
+
+
+def handler_messages(client_socket):
+    # buffer = b""
     while True:
         try:
             # Receive incoming data from the server
-            data = client_socket.recv(1024)
+            # data = client_socket.recv(1024)
+            data = receive_message(client_socket, Message)
             if not data:
                 break
             
-            # Add data to buffer
-            buffer += data
+            # print(f"Received data: {data}")
+            print(f"[{data.fr}]: {data.msg}")
 
-            # Process each message from the buffer
-            while len(buffer) > 0:
-                # Try to deserialize a Message object from the buffer
-                message = Message()
+            # # split the buffer into messages
+            # # raw_messages = split_buffer_to_messages(data)
+            # raw_messages = [data]
+            # print(f"Messages: {raw_messages}")
+            # # work with the messages
+            # # messages = [bytes(message) for message in raw_messages
+            # # print(f"Messages: {messages}")
+            # messages = raw_messages
 
-                try:
-                    message.ParseFromString(buffer)
-                    # Print out the message
-                    print(f"[{message.fr}]: {message.msg}")
+            # # Process each message from the buffer
+            # for queued_message in messages:
+            #     # Try to deserialize a Message object from the buffer
+            #     message = Message()
 
-                    # Remove the processed message from the buffer
-                    buffer = buffer[message.ByteSize():]
+            #     try:
+            #         message.ParseFromString(queued_message)
+            #         # Print out the message
+            #         print(f"[{message.fr}]: {message.msg}")
 
-                except Exception as e:
-                    # If there's an error parsing, wait for more data
-                    break
+            #         # Remove the processed message from the buffer
+            #         messages.remove(queued_message)
+
+            #     except Exception as e:
+            #         # If there's an error parsing, wait for more data
+            #         break
                 
         except Exception as e:
             print(f"[ERROR] Connection lost. {e}")
@@ -42,14 +93,16 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
     # Perform Fast Handshake with the desired ID
     if desired_id is not None:
         handshake = FastHandshake()
-        handshake.id = desired_id
-        handshake.error = False  # Indicating no error initially
-        client_socket.send(handshake.SerializeToString())
+        # handshake.id = desired_id
+        # handshake.error = False  # Indicating no error initially
+        # client_socket.sendall(handshake.SerializeToString())
+        send_message(client_socket, handshake)
 
         # Wait for server response on whether the ID was accepted
-        response = client_socket.recv(1024)
-        server_handshake = FastHandshake()
-        server_handshake.ParseFromString(response)
+        # response = client_socket.recv(1024)
+        # server_handshake = FastHandshake()
+        # server_handshake.ParseFromString(response)
+        server_handshake = receive_message(client_socket, FastHandshake)
 
         if server_handshake.error:
             print(f"[SERVER] Requested ID {desired_id} is already in use.")
@@ -60,7 +113,7 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
             print(f"[SERVER] Successfully connected with ID {client_id}")
 
     # Start a thread to listen for incoming messages
-    receive_thread = threading.Thread(target=receive_messages, args=(client_socket,))
+    receive_thread = threading.Thread(target=handler_messages, args=(client_socket,))
     receive_thread.start()
 
     print("Connected to the server. You can start sending messages.")
@@ -85,7 +138,9 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
                     msg.msg = msg_content
 
                     # Serialize the Message and send it
-                    client_socket.send(msg.SerializeToString())
+                    # client_socket.sendall(msg.SerializeToString())
+
+                    send_message(client_socket, msg)
                 except ValueError:
                     print("[ERROR] Invalid recipient ID.")
             else:

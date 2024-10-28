@@ -1,5 +1,6 @@
 import socket
 import threading
+from threading import Thread
 from sys import argv
 from template_pb2 import Message, FastHandshake
 
@@ -12,13 +13,29 @@ def assign_new_id():
     LAST_ID += 1
     return LAST_ID
 
-def handle_client(client_socket, client_address):
-    print(f"[NEW CONNECTION] {client_address} connected.")
+
+def send_message(conn, m):
+    # send_message(conn, m)
+    serialized = m.SerializeToString()
+    conn.sendall(len(serialized).to_bytes(4, byteorder="big"))
+    conn.sendall(serialized)
+    # client_socket.sendall(serialized.SerializeToString())
+
+def receive_message(conn, m):
+    msg = m()
+    size = int.from_bytes(conn.recv(4), byteorder="big")
+    data = conn.recv(size)
+    msg.ParseFromString(data)
+    print("receive message:", msg)
+    return msg
+
+
+def handle_client(conn: socket.socket, addr):
+    print(f"[NEW CONNECTION] {addr} connected.")
     
     # Receive the initial handshake from the client to determine the desired ID
-    data = client_socket.recv(1024)
-    handshake = FastHandshake()
-    handshake.ParseFromString(data)
+    handshake = receive_message(conn, FastHandshake)
+    print(f"handshake {handshake}")
     
     desired_id = handshake.id
     if desired_id in CLIENTS or desired_id <= 0:
@@ -27,25 +44,31 @@ def handle_client(client_socket, client_address):
         print(f"[HANDSHAKE] ID {desired_id} is invalid or already in use. Assigned new ID: {assigned_id}.")
         
         # Send a response with the new ID (error=True, but providing a new ID)
-        response = FastHandshake()
-        response.id = assigned_id
-        response.error = True
-        client_socket.send(response.SerializeToString())
+        # response = FastHandshake()
+        # response.id = assigned_id
+        # response.error = True
+
+        # client_socket.sendall(response.SerializeToString())
+
+        response = FastHandshake(id=assigned_id, error=(desired_id != assigned_id))
+        print(f"response {response}")
+        send_message(conn, response)
 
         # Use the new assigned ID
-        CLIENTS[assigned_id] = client_socket
+        CLIENTS[assigned_id] = conn
         # Deliver any buffered messages
-        deliver_buffered_messages(assigned_id)
+        deliver_buffered_messages(conn, assigned_id)
     else:
         # Accept the desired ID and add to connected clients
-        CLIENTS[desired_id] = client_socket
+        CLIENTS[desired_id] = conn
         print(f"[HANDSHAKE] Client {desired_id} connected successfully.")
         
         # Send success response
         response = FastHandshake()
-        response.id = desired_id
-        response.error = False
-        client_socket.send(response.SerializeToString())
+        # response.id = desired_id
+        # response.error = False
+        # conn.sendall(response.SerializeToString())
+        send_message(conn, response)
         
         # Deliver any buffered messages
         deliver_buffered_messages(desired_id)
@@ -53,47 +76,56 @@ def handle_client(client_socket, client_address):
     try:
         while True:
             # Receive message from the client
-            message_data = client_socket.recv(1024)
+            # message_data = conn.recv(1024)
+            message_data = receive_message(conn, Message)
+            print(f"messaeg data {message_data}")
             if not message_data:
                 break
 
             # Deserialize the data as a Message object
-            message = Message()
-            message.ParseFromString(message_data)
-            recipient_id = message.to
-            msg_content = message.msg
+            # message = Message()
+            # message.ParseFromString(message_data)
+            recipient_id = message_data.to
+            msg_content = message_data.msg
             
             # Check if the recipient is in the list of connected clients
             if recipient_id in CLIENTS:
                 # Forward the message to the intended recipient
                 recipient_socket = CLIENTS[recipient_id]
-                recipient_socket.send(message_data)
+                # recipient_socket.sendall(message_data)
+                send_message(recipient_socket, message_data)
+            if msg_content == "end":
+                break
             else:
                 # Store the message for delivery when the client reconnects
                 print(f"[INFO] Storing message for offline client {recipient_id}.")
                 if recipient_id not in MESSAGE_QUEUE:
                     MESSAGE_QUEUE[recipient_id] = []
-                MESSAGE_QUEUE[recipient_id].append(message_data)
+                # MESSAGE_QUEUE[recipient_id].append(message_data)
+                MESSAGE_QUEUE.setdefault(message_data.to, []).append(message_data)
+
                 
     finally:
         # Remove client from the connected list when they disconnect
-        client_socket.close()
+        conn.close()
         for client_id, sock in list(CLIENTS.items()):
-            if sock == client_socket:
+            if sock == conn:
                 del CLIENTS[client_id]
                 print(f"[DISCONNECTED] Client {client_id} disconnected.")
                 break
 
-def deliver_buffered_messages(client_id):
+def deliver_buffered_messages(conn, client_id):
     if client_id in MESSAGE_QUEUE and MESSAGE_QUEUE[client_id]:
         print(f"[INFO] Delivering buffered messages to client {client_id}.")
         print(f"[INFO] {MESSAGE_QUEUE[client_id]} messages in the queue.")
         client_socket = CLIENTS[client_id]
         for message in MESSAGE_QUEUE[client_id]:
             print(f"[INFO] Delivering queud message: {message}")
-            client_socket.send(message)
+            # client_socket.sendall(message)
+            send_message(conn, message)
         # Clear the queue after delivering messages
         MESSAGE_QUEUE[client_id] = []
+        print(f"[INFO] Qeue of client {client_id} cleared: {MESSAGE_QUEUE[client_id]}")
 
 def loop_main(port):
     try:
@@ -106,7 +138,8 @@ def loop_main(port):
             while True:
                 try:
                     conn, addr = s.accept()
-                    threading.Thread(target=handle_client, args=(conn, addr)).start()
+                    # threading.Thread(target=handle_client, args=(conn, addr)).start()
+                    Thread(target=handle_client, args=(conn, addr)).start()
                 except KeyboardInterrupt:
                     break
     except:
