@@ -11,6 +11,8 @@ LAST_ID = 0   # Counter to track the last assigned ID
 def assign_new_id():
     global LAST_ID
     LAST_ID += 1
+    while LAST_ID in CLIENTS:
+        LAST_ID += 1
     return LAST_ID
 
 
@@ -26,7 +28,7 @@ def receive_message(conn, m):
     size = int.from_bytes(conn.recv(4), byteorder="big")
     data = conn.recv(size)
     msg.ParseFromString(data)
-    print("receive message:", msg)
+    # print("receive message:", msg)
     return msg
 
 
@@ -74,35 +76,35 @@ def handle_client(conn: socket.socket, addr):
         deliver_buffered_messages(conn, desired_id)
 
     try:
-        while True:
-            # Receive message from the client
-            # message_data = conn.recv(1024)
-            message_data = receive_message(conn, Message)
-            print(f"messaeg data {message_data}")
-            if not message_data:
-                break
+        with conn:
+            while True:
+                # Receive message from the client
+                # message_data = conn.recv(1024)
+                message_data = receive_message(conn, Message)
+                if not message_data:
+                    break
 
-            # Deserialize the data as a Message object
-            # message = Message()
-            # message.ParseFromString(message_data)
-            recipient_id = message_data.to
-            msg_content = message_data.msg
-            
-            # Check if the recipient is in the list of connected clients
-            if recipient_id in CLIENTS:
-                # Forward the message to the intended recipient
-                recipient_socket = CLIENTS[recipient_id]
-                # recipient_socket.sendall(message_data)
-                send_message(recipient_socket, message_data)
-            if msg_content == "end":
-                break
-            else:
-                # Store the message for delivery when the client reconnects
-                print(f"[INFO] Storing message for offline client {recipient_id}.")
-                if recipient_id not in MESSAGE_QUEUE:
-                    MESSAGE_QUEUE[recipient_id] = []
-                # MESSAGE_QUEUE[recipient_id].append(message_data)
-                MESSAGE_QUEUE.setdefault(message_data.to, []).append(message_data)
+                # Deserialize the data as a Message object
+                # message = Message()
+                # message.ParseFromString(message_data)
+                recipient_id = message_data.to
+                msg_content = message_data.msg
+                
+                # Check if the recipient is in the list of connected clients
+                if recipient_id in CLIENTS:
+                    # Forward the message to the intended recipient
+                    recipient_socket = CLIENTS[recipient_id]
+                    # recipient_socket.sendall(message_data)
+                    send_message(recipient_socket, message_data)
+                if msg_content == "end":
+                    break
+                else:
+                    # Store the message for delivery when the client reconnects
+                    # print(f"[INFO] Storing message for offline client {recipient_id}.")s
+                    if recipient_id not in MESSAGE_QUEUE:
+                        MESSAGE_QUEUE[recipient_id] = []
+                    # MESSAGE_QUEUE[recipient_id].append(message_data)
+                    MESSAGE_QUEUE.setdefault(message_data.to, []).append(message_data)
 
                 
     finally:
