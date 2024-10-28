@@ -2,33 +2,6 @@ import socket
 import threading
 from template_pb2 import Message, FastHandshake
 
-def split_buffer_to_messages(buffer):
-    messages = []
-    index = 0
-
-    while index < len(buffer):
-        # Look for the start of a new message, assuming it starts with '\x08'
-        if buffer[index] == 0x08:
-            # If we are not at the start of the buffer, consider everything before as a message
-            if index > 0:
-                messages.append(current_message)
-            
-            # Start a new message
-            current_message = bytearray()
-        
-        # Add the current byte to the current message
-        current_message.append(buffer[index])
-        
-        # Move to the next byte
-        index += 1
-    
-    # Append the last collected message
-    if current_message:
-        messages.append(current_message)
-    
-    return messages
-
-
 def send_message(conn, m):
     serialized = m.SerializeToString()
     conn.sendall(len(serialized).to_bytes(4, byteorder="big"))
@@ -44,7 +17,6 @@ def receive_message(conn, m):
 
 
 def handler_messages(client_socket):
-    # buffer = b""
     while True:
         try:
             # Receive incoming data from the server
@@ -53,17 +25,7 @@ def handler_messages(client_socket):
             if not data:
                 break
             
-            # print(f"Received data: {data}")
             print(f"[{data.fr}]: {data.msg}")
-
-            # # split the buffer into messages
-            # # raw_messages = split_buffer_to_messages(data)
-            # raw_messages = [data]
-            # print(f"Messages: {raw_messages}")
-            # # work with the messages
-            # # messages = [bytes(message) for message in raw_messages
-            # # print(f"Messages: {messages}")
-            # messages = raw_messages
 
             # # Process each message from the buffer
             # for queued_message in messages:
@@ -92,7 +54,8 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
 
     # Perform Fast Handshake with the desired ID
     if desired_id is not None:
-        handshake = FastHandshake()
+        handshake = FastHandshake(id=desired_id, error=False)
+        print(f"handshake {handshake}")
         # handshake.id = desired_id
         # handshake.error = False  # Indicating no error initially
         # client_socket.sendall(handshake.SerializeToString())

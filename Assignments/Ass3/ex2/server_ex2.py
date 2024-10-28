@@ -35,7 +35,7 @@ def handle_client(conn: socket.socket, addr):
     
     # Receive the initial handshake from the client to determine the desired ID
     handshake = receive_message(conn, FastHandshake)
-    print(f"handshake {handshake}")
+    print(f"handshake id  {handshake.id}")
     
     desired_id = handshake.id
     if desired_id in CLIENTS or desired_id <= 0:
@@ -71,7 +71,7 @@ def handle_client(conn: socket.socket, addr):
         send_message(conn, response)
         
         # Deliver any buffered messages
-        deliver_buffered_messages(desired_id)
+        deliver_buffered_messages(conn, desired_id)
 
     try:
         while True:
