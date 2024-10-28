@@ -64,7 +64,7 @@ def handle_client(conn: socket.socket, addr):
         print(f"[HANDSHAKE] Client {desired_id} connected successfully.")
         
         # Send success response
-        response = FastHandshake()
+        response = FastHandshake(id=assigned_id, error=False)
         # response.id = desired_id
         # response.error = False
         # conn.sendall(response.SerializeToString())
