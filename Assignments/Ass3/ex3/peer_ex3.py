@@ -48,15 +48,13 @@ class Peer:
                 if message:
                     # Parse the input to extract recipient ID and message
                     recipient_id_str, msg_content = message.split(' ', 1)
-                    print(f"recipient_id_str: {recipient_id_str}")
-                    print(f"msg_content: {msg_content}")
                     try:
                         recipient_id = int(recipient_id_str)
                         # Create a Message object to send
                         msg = Message()
                         msg.fr = self.peer_id
                         msg.msg = msg_content
-                        msg.to = recipient_id_str
+                        msg.to = recipient_id
                         print(f"Message sent {msg}")
                         self.send_message(msg)
 
@@ -87,7 +85,6 @@ class Peer:
     
     def send_message(self, msg):
         """Send a serialized Protocol Buffer message to all connected peers."""
-        print(f"Sending message: {msg.msg}")
         serialized = msg.SerializeToString()
         for conn in self.connections.values():
             conn.sendall(len(serialized).to_bytes(4, byteorder="big"))
@@ -99,7 +96,6 @@ class Peer:
         data = conn.recv(size)
         msg = template_pb2.Message()
         msg.ParseFromString(data)
-        print(f"Message received: {msg.msg}")
         return msg
 
 ## End class Peer
