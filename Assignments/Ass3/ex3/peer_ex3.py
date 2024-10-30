@@ -6,18 +6,12 @@ from template_pb2 import Message, FastHandshake
 from snowflake import derive_id  
 
 class Peer:
-    def __init__(self, my_ip, my_port, peer_id=None, peers=None):
+    def __init__(self, my_ip, my_port, peer_id=None, connected_peers=None):
         self.my_ip = my_ip
         self.my_port = my_port
         self.peer_id = peer_id
-        self.peers = peers if peers else []
+        self.connected_peers = connected_peers if connected_peers else []
         self.connections = {} # Sockets to connected peers
-
-        # Initialize and bind the peer's socket
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind((self.my_ip, self.my_port))
-        self.socket.listen()
-        print(f"[PEER STARTED] Listening on {self.my_ip}:{self.my_port} with ID {self.unique_id}")
 
     def run(self):
         # Listen for new connections
@@ -28,13 +22,50 @@ class Peer:
             
             # Connect to other peers
             for peer_ip, peer_port in self.connected_peers:
+                print(f"Connecting to peer {peer_ip}:{peer_port}")
+                # convert to int
+                peer_port = int(peer_port)
                 self.connect_to_peer(peer_ip, peer_port)
+
+            # Start the thread for handling outgoing messages
+            Thread(target=self.handle_out_m, daemon=True).start()
 
             # Accept new connections from peers
             while True:
                 conn, addr = s.accept()
                 # Start the handler thread for managing incoming and outgoing messages
-                Thread(target=self.message_handler_thread).start()
+                Thread(target=self.handle_peer, args=(conn, addr)).start()
+
+
+    def handle_out_m(self):
+        while True:
+            try:
+                # Get input from the user (message format: [id] [msg])
+                print("Enter message format: [id] [msg]")
+                message = input()
+                if message.lower() == 'end':
+                    break
+                if message:
+                    # Parse the input to extract recipient ID and message
+                    recipient_id_str, msg_content = message.split(' ', 1)
+                    print(f"recipient_id_str: {recipient_id_str}")
+                    print(f"msg_content: {msg_content}")
+                    try:
+                        recipient_id = int(recipient_id_str)
+                        # Create a Message object to send
+                        msg = Message()
+                        msg.fr = self.peer_id
+                        msg.msg = msg_content
+                        msg.to = recipient_id_str
+                        print(f"Message sent {msg}")
+                        self.send_message(msg)
+
+                    except ValueError:
+                        print("[ERROR] Invalid recipient ID.")
+                else:
+                    print("[ERROR] Invalid message format. Use '[id] [msg]'.")
+            except:
+                break
 
     def handle_peer(self, conn, addr):
         while True:
@@ -47,10 +78,16 @@ class Peer:
                     self.send_message(msg)
             except:
                 break
-        conn.close()
+        conn.close() # ????
+
+    def connect_to_peer(self, peer_ip, peer_port):
+        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        conn.connect((peer_ip, peer_port))
+        self.connections[(peer_ip, peer_port)] = conn
     
     def send_message(self, msg):
         """Send a serialized Protocol Buffer message to all connected peers."""
+        print(f"Sending message: {msg.msg}")
         serialized = msg.SerializeToString()
         for conn in self.connections.values():
             conn.sendall(len(serialized).to_bytes(4, byteorder="big"))
@@ -62,6 +99,7 @@ class Peer:
         data = conn.recv(size)
         msg = template_pb2.Message()
         msg.ParseFromString(data)
+        print(f"Message received: {msg.msg}")
         return msg
 
 ## End class Peer
@@ -69,7 +107,7 @@ class Peer:
 def generate_id(my_ip):
     assigner_id = int.from_bytes(my_ip.encode(), byteorder='big')  # Use IP as assigner ID
     peer_id = derive_id(assigner_id)
-    return id
+    return peer_id
    
 def main():
     try:
