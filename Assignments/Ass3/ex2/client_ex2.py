@@ -49,10 +49,6 @@ def handler_messages_out(client_socket, client_id=None):
                     msg.fr = client_id if client_id else 0  # Use the chosen ID
                     msg.to = recipient_id
                     msg.msg = msg_content
-
-                    # Serialize the Message and send it
-                    # client_socket.sendall(msg.SerializeToString())
-
                     send_message(client_socket, msg)
                 except ValueError:
                     print("[ERROR] Invalid recipient ID.")
