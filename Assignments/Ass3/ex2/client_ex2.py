@@ -21,29 +21,11 @@ def handler_messages_in(client_socket):
     while True:
         try:
             # Receive incoming data from the server
-            # data = client_socket.recv(1024)
             data = receive_message(client_socket, Message)
             if not data:
                 break
             
             print(f"[{data.fr}]: {data.msg}")
-
-            # # Process each message from the buffer
-            # for queued_message in messages:
-            #     # Try to deserialize a Message object from the buffer
-            #     message = Message()
-
-            #     try:
-            #         message.ParseFromString(queued_message)
-            #         # Print out the message
-            #         print(f"[{message.fr}]: {message.msg}")
-
-            #         # Remove the processed message from the buffer
-            #         messages.remove(queued_message)
-
-            #     except Exception as e:
-            #         # If there's an error parsing, wait for more data
-            #         break
                 
         except Exception as e:
             print(f"[ERROR] Connection lost. {e}")
@@ -87,15 +69,9 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
     # Perform Fast Handshake with the desired ID
     if desired_id is not None:
         handshake = FastHandshake(id=desired_id, error=False)
-        # handshake.id = desired_id
-        # handshake.error = False  # Indicating no error initially
-        # client_socket.sendall(handshake.SerializeToString())
         send_message(client_socket, handshake)
 
-        # Wait for server response on whether the ID was accepted
-        # response = client_socket.recv(1024)
-        # server_handshake = FastHandshake()
-        # server_handshake.ParseFromString(response)
+        # server response on whether the ID was accepted
         server_handshake = receive_message(client_socket, FastHandshake)
 
         if server_handshake.error:
@@ -126,6 +102,6 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
     print("Disconnected from the server.")
 
 if __name__ == "__main__":
-    # Example: The desired ID must be passed when starting the client
+    # The desired ID must be passed when starting the client
     desired_id = int(input("Enter your desired ID: "))
     start_client(desired_id=desired_id)

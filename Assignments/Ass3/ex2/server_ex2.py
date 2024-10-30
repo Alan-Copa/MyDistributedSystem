@@ -4,9 +4,9 @@ from threading import Thread
 from sys import argv
 from template_pb2 import Message, FastHandshake
 
-CLIENTS = {}  # Dictionary to store connected clients {client_id: connection}
-MESSAGE_QUEUE = {}  # Dictionary to store messages for offline clients {client_id: [messages]}
-LAST_ID = 0   # Counter to track the last assigned ID
+CLIENTS = {} # Dictionary to store connected clients {client_id: connection}
+MESSAGE_QUEUE = {} # Dictionary to store messages for offline clients {client_id: [messages]}
+LAST_ID = 0  # Counter to track the last assigned ID
 
 def assign_new_id():
     global LAST_ID
@@ -17,18 +17,15 @@ def assign_new_id():
 
 
 def send_message(conn, m):
-    # send_message(conn, m)
     serialized = m.SerializeToString()
     conn.sendall(len(serialized).to_bytes(4, byteorder="big"))
     conn.sendall(serialized)
-    # client_socket.sendall(serialized.SerializeToString())
 
 def receive_message(conn, m):
     msg = m()
     size = int.from_bytes(conn.recv(4), byteorder="big")
     data = conn.recv(size)
     msg.ParseFromString(data)
-    # print("receive message:", msg)
     return msg
 
 
@@ -46,12 +43,6 @@ def handle_client(conn: socket.socket, addr):
         print(f"[HANDSHAKE] ID {desired_id} is invalid or already in use. Assigned new ID: {assigned_id}.")
         
         # Send a response with the new ID (error=True, but providing a new ID)
-        # response = FastHandshake()
-        # response.id = assigned_id
-        # response.error = True
-
-        # client_socket.sendall(response.SerializeToString())
-
         response = FastHandshake(id=assigned_id, error=(desired_id != assigned_id))
         print(f"response {response}")
         send_message(conn, response)
@@ -67,9 +58,6 @@ def handle_client(conn: socket.socket, addr):
         
         # Send success response
         response = FastHandshake(id=desired_id, error=False)
-        # response.id = desired_id
-        # response.error = False
-        # conn.sendall(response.SerializeToString())
         send_message(conn, response)
         
         # Deliver any buffered messages
@@ -79,14 +67,10 @@ def handle_client(conn: socket.socket, addr):
         with conn:
             while True:
                 # Receive message from the client
-                # message_data = conn.recv(1024)
                 message_data = receive_message(conn, Message)
                 if not message_data:
                     break
 
-                # Deserialize the data as a Message object
-                # message = Message()
-                # message.ParseFromString(message_data)
                 recipient_id = message_data.to
                 msg_content = message_data.msg
                 
@@ -100,7 +84,6 @@ def handle_client(conn: socket.socket, addr):
                     break
                 else:
                     # Store the message for delivery when the client reconnects
-                    # print(f"[INFO] Storing message for offline client {recipient_id}.")s
                     if recipient_id not in MESSAGE_QUEUE:
                         MESSAGE_QUEUE[recipient_id] = []
                     # MESSAGE_QUEUE[recipient_id].append(message_data)
@@ -123,7 +106,6 @@ def deliver_buffered_messages(conn, client_id):
         client_socket = CLIENTS[client_id]
         for message in MESSAGE_QUEUE[client_id]:
             print(f"[INFO] Delivering queud message: {message}")
-            # client_socket.sendall(message)
             send_message(conn, message)
         # Clear the queue after delivering messages
         MESSAGE_QUEUE[client_id] = []
@@ -140,7 +122,6 @@ def loop_main(port):
             while True:
                 try:
                     conn, addr = s.accept()
-                    # threading.Thread(target=handle_client, args=(conn, addr)).start()
                     Thread(target=handle_client, args=(conn, addr)).start()
                 except KeyboardInterrupt:
                     break
