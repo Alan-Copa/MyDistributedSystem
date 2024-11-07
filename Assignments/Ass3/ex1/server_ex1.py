@@ -1,26 +1,36 @@
 import socket
-import threading
 from sys import argv
+from threading import Thread
 from template_pb2 import Message, FastHandshake
 
 CLIENTS = {}  # Dictionary to store connected clients {client_id: connection}
 LAST_ID = 0   # Counter to track the last assigned ID
 
+def send_message(conn, m):
+    serialized = m.SerializeToString()
+    conn.sendall(len(serialized).to_bytes(4, byteorder="big"))
+    conn.sendall(serialized)
+
+def receive_message(conn, m):
+    msg = m()
+    size = int.from_bytes(conn.recv(4), byteorder="big")
+    data = conn.recv(size)
+    msg.ParseFromString(data)
+    return msg
+
 def assign_new_id():
     global LAST_ID
     LAST_ID += 1
-    # control that the new id isn't already in use
+    # Ensure the new ID isn’t already in use
     while LAST_ID in CLIENTS:
         LAST_ID += 1
     return LAST_ID
 
-def handle_client(client_socket, client_address):
-    print(f"[NEW CONNECTION] {client_address} connected.")
+def handle_client(conn, addr):
+    print(f"[NEW CONNECTION] {addr} connected.")
     
     # Receive the initial handshake from the client to determine the desired ID
-    data = client_socket.recv(1024)
-    handshake = FastHandshake()
-    handshake.ParseFromString(data)
+    handshake = receive_message(conn, FastHandshake)
     
     desired_id = handshake.id
     if desired_id in CLIENTS or desired_id <= 0:
@@ -29,53 +39,43 @@ def handle_client(client_socket, client_address):
         print(f"[HANDSHAKE] ID {desired_id} is invalid or already in use. Assigned new ID: {assigned_id}.")
         
         # Send a response with the new ID (error=True, but providing a new ID)
-        response = FastHandshake()
-        response.id = assigned_id
-        response.error = True
-        client_socket.send(response.SerializeToString())
+        response = FastHandshake(id=assigned_id, error=(desired_id != assigned_id))
+        send_message(conn, response)
 
         # Use the new assigned ID
-        CLIENTS[assigned_id] = client_socket
+        CLIENTS[assigned_id] = conn
+
     else:
         # Accept the desired ID and add to connected clients
-        CLIENTS[desired_id] = client_socket
+        CLIENTS[desired_id] = conn
         print(f"[HANDSHAKE] Client {desired_id} connected successfully.")
         
         # Send success response
-        response = FastHandshake()
-        response.id = desired_id
-        response.error = False
-        client_socket.send(response.SerializeToString())
+        response = FastHandshake(id=desired_id, error=False)
+        send_message(conn, response)
 
-    try:
+    with conn:
         while True:
-            # Receive message from the client
-            message_data = client_socket.recv(1024)
-            if not message_data:
-                break
+            try:
+                # Receive message from the client
+                msg = receive_message(conn, Message)
+                print(f"Received: {msg.msg} from {msg.fr} to {msg.to}")
 
-            # Deserialize the data as a Message object
-            message = Message()
-            message.ParseFromString(message_data)
-            recipient_id = message.to
-            msg_content = message.msg
-            
-            # Check if the recipient is in the list of connected clients
-            if recipient_id in CLIENTS:
-                # Forward the message to the intended recipient
-                recipient_socket = CLIENTS[recipient_id]
-                recipient_socket.send(message_data)
-            else:
-                print(f"[INFO] Message to non-existent client {recipient_id} dropped.")
-                
-    finally:
-        # Remove client from the connected list when they disconnect
-        client_socket.close()
-        for client_id, sock in list(CLIENTS.items()):
-            if sock == client_socket:
-                del CLIENTS[client_id]
-                print(f"[DISCONNECTED] Client {client_id} disconnected.")
+                if msg.msg == "end":
+                    break  # Exit loop on "end" message
+
+                # Check if recipient exists and forward message
+                recipient_id = msg.to
+                if recipient_id in CLIENTS:
+                    send_message(CLIENTS[recipient_id], msg)
+                else:
+                    print(f"[INFO] Message to non-existent client {recipient_id} dropped.")
+            except Exception as e:
+                print(f"[ERROR] {e}")
                 break
+        
+        print(f"Closing connection to #{id} {addr}")
+        CLIENTS.pop(id, None)  # Remove client from list upon disconnect
 
 def loop_main(port):
     try:
@@ -87,11 +87,11 @@ def loop_main(port):
             while True:
                 try:
                     conn, addr = s.accept()
-                    threading.Thread(target=handle_client, args=(conn, addr)).start()
+                    Thread(target=handle_client, args=(conn, addr)).start()
                 except KeyboardInterrupt:
                     break
-    except:
-        pass
+    except Exception as e:
+        print(f"[ERROR] {e}")
 
 def main():
     global CLIENTS
@@ -101,14 +101,14 @@ def main():
     except:
         port = 8080
 
-    loop = threading.Thread(target=loop_main, args=(port,))
+    loop = Thread(target=loop_main, args=(port,))
     loop.daemon = True
     loop.start()
 
     while True:
         try:
             command = input("op> ").strip().lower()
-        except:
+        except KeyboardInterrupt:
             break
 
         if command == "num_users":

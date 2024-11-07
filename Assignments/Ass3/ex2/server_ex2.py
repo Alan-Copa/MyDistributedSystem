@@ -34,7 +34,6 @@ def handle_client(conn: socket.socket, addr):
     
     # Receive the initial handshake from the client to determine the desired ID
     handshake = receive_message(conn, FastHandshake)
-    print(f"handshake id  {handshake.id}")
     
     desired_id = handshake.id
     if desired_id in CLIENTS or desired_id <= 0:
@@ -44,7 +43,6 @@ def handle_client(conn: socket.socket, addr):
         
         # Send a response with the new ID (error=True, but providing a new ID)
         response = FastHandshake(id=assigned_id, error=(desired_id != assigned_id))
-        print(f"response {response}")
         send_message(conn, response)
 
         # Use the new assigned ID
@@ -102,8 +100,7 @@ def handle_client(conn: socket.socket, addr):
 def deliver_buffered_messages(conn, client_id):
     if client_id in MESSAGE_QUEUE and MESSAGE_QUEUE[client_id]:
         print(f"[INFO] Delivering buffered messages to client {client_id}.")
-        print(f"[INFO] {MESSAGE_QUEUE[client_id]} messages in the queue.")
-        client_socket = CLIENTS[client_id]
+        # print(f"[INFO] {MESSAGE_QUEUE[client_id]} messages in the queue.")
         for message in MESSAGE_QUEUE[client_id]:
             print(f"[INFO] Delivering queud message: {message}")
             send_message(conn, message)

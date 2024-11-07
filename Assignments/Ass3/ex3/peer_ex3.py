@@ -55,7 +55,7 @@ class Peer:
                         msg.fr = self.peer_id
                         msg.msg = msg_content
                         msg.to = recipient_id
-                        print(f"Message sent {msg}")
+                        # print(f"Message sent {msg}")
                         self.send_message(msg)
 
                     except ValueError:
@@ -112,8 +112,8 @@ def main():
         desired_id = None
         
         # check if desired_id is provided
-        if '--desired-id' in argv:
-                desired_id_index = argv.index('--desired-id') + 1
+        if '−−desired−id' in argv:
+                desired_id_index = argv.index('−−desired−id') + 1
                 desired_id = int(argv[desired_id_index])
         
         # get connected peers
