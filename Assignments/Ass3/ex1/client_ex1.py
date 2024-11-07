@@ -26,7 +26,7 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
     if desired_id is not None:
         handshake = FastHandshake()
         handshake.id = desired_id
-        handshake.error = False  # Indicating no error initially
+        handshake.error = False
         client_socket.send(handshake.SerializeToString())
 
         # Wait for server response on whether the ID was accepted
@@ -38,9 +38,6 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
             print(f"[SERVER] Requested ID {desired_id} is already in use.")
             print(f"[SERVER] Assigned new ID: {server_handshake.id}")
             client_id = server_handshake.id
-            # terminate the connection
-            # client_socket.close()
-            # return
         else:
             client_id = desired_id
             print(f"[SERVER] Successfully connected with ID {client_id}")
@@ -73,7 +70,7 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
                     msg.msg = msg_content
 
                     # Serialize the Message and send it
-                    client_socket.send(msg.SerializeToString())
+                    client_socket.sendall(msg.SerializeToString())
                 except ValueError:
                     print("[ERROR] Invalid recipient ID.")
             else:

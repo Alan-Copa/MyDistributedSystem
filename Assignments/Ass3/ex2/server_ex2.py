@@ -6,7 +6,7 @@ from template_pb2 import Message, FastHandshake
 
 CLIENTS = {} # Dictionary to store connected clients {client_id: connection}
 MESSAGE_QUEUE = {} # Dictionary to store messages for offline clients {client_id: [messages]}
-LAST_ID = 0  # Counter to track the last assigned ID
+LAST_ID = 0 # Counter to track the last assigned ID
 
 def assign_new_id():
     global LAST_ID

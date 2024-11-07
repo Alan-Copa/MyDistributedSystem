@@ -76,7 +76,7 @@ class Peer:
                     self.send_message(msg)
             except:
                 break
-        conn.close() # ????
+        conn.close()
 
     def connect_to_peer(self, peer_ip, peer_port):
         conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -116,7 +116,7 @@ def main():
                 desired_id_index = argv.index('--desired-id') + 1
                 desired_id = int(argv[desired_id_index])
         
-        #  get connected peers
+        # get connected peers
         connected_peers = [tuple(peer.split(":")) for peer in argv[desired_id_index + 1:]]
     except:
         print("Usage: not correct")

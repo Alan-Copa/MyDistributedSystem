@@ -88,8 +88,6 @@ def start_client(server_ip='127.0.0.1', server_port=8080, desired_id=None):
     receive_thread.join()
     out_tread.join()
 
-    
-
     print("Connected to the server. You can start sending messages.")
     print("Message format: [id] [msg]")
 
