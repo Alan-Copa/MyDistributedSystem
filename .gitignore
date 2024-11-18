@@ -3,6 +3,10 @@
 ### Complete `.gitignore`
 
 ```gitignore
+
+# Ignore .DS_Store files across the entire repository
+**/.DS_Store
+
 # Python bytecode
 __pycache__/
 *.py[cod]
